@@ -1,0 +1,26 @@
+#!/bin/bash
+
+############################################
+##
+##            W A R N I N G :
+##
+##   /var/lib/docker will be removed!!!!
+##
+############################################
+
+set -e
+modprobe zram num_devices=4
+ZRAM_DISK_SIZE=${ZRAM_DISK_SIZE:-40}  # GB
+ZRAM_DEV=$(zramctl -f)
+
+systemctl stop docker
+rm -rf /var/lib/docker
+
+zramctl ${ZRAM_DEV} -a lz4 -s $((${ZRAM_DISK_SIZE}*1024*1024*1024))
+mkfs.ext4 -m0 -O ^has_journal -E lazy_itable_init=0,lazy_journal_init=0,discard ${ZRAM_DEV}
+tune2fs -O ^has_journal ${ZRAM_DEV}
+
+mkdir -p /var/lib/docker
+mount -o discard,nodiratime,noatime ${ZRAM_DEV} /var/lib/docker
+
+systemctl start docker
